@@ -1,0 +1,38 @@
+int setup_buff(char *buff, char *user_str, int len){
+    //TODO: #4:  Implement the setup buff as per the directions
+    char* temp = user_str;
+    int ret = 0;
+    int ws = 0;
+    for(int i = len; i>0; i--){
+        if(*temp!='\0'){
+            
+            if(*temp != ' '){
+                ws = 0;
+                buff[ret] = *temp;
+                ret++;
+            }else{
+                // printf("space at %d, %d\n", ret,ws);
+                if(ws == 0){
+                    ws = 1;
+                    buff[ret] = ' ';
+                    ret++;
+                }
+                
+            }
+            
+            temp++;
+        }else{
+            break;
+        }
+
+        for(int i = ret; i < len; i++){
+            buff[i] = '.';
+        }
+        
+    }
+    if(*temp!='\0'){
+        return -1;
+    }
+    return ret;
+    return 0; //for now just so the code compiles. 
+}
