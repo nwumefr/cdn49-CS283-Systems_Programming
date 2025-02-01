@@ -63,14 +63,24 @@ int open_db(char *dbFile, bool should_truncate){
  *  console:  Does not produce any console I/O used by other functions
  */
 int get_student(int fd, int id, student_t *s){
-    student_t * new_student = malloc(sizeof(student_t));
-    int offset = id*sizeof(student_t); // offset to find student of id
-    lseek(fd, offset, SEEK_SET); // set read position to that of id
-    char * buff = malloc(sizeof(student_t)); // initialize buffer to read data
-    read(fd,buff,sizeof(student_t)); // load data into buffer
-    printf("Read data: %s\n", buff);
-    return NOT_IMPLEMENTED_YET;
+    off_t offset = id * sizeof(student_t);
+    if (lseek(fd, offset, SEEK_SET) == -1) {
+        perror("Error seeking student record");
+        return ERR_DB_FILE;
+    }
+    
+    if (read(fd, s, sizeof(student_t)) != sizeof(student_t)) {
+        return SRCH_NOT_FOUND;
+    }
+    
+    if (s->id == 0) {  // Empty record check
+        return SRCH_NOT_FOUND;
+    }
+
+    print_student(s);
+    return NO_ERROR;
 }
+
 
 /*
  *  add_student
@@ -97,10 +107,43 @@ int get_student(int fd, int id, student_t *s){
  *            M_ERR_DB_WRITE    error writing to db file (adding student)
  *            
  */
-int add_student(int fd, int id, char *fname, char *lname, int gpa){
-    printf(M_NOT_IMPL);
-    return NOT_IMPLEMENTED_YET;
+int add_student(int fd, int id, char *fname, char *lname, int gpa) {
+
+    student_t student;
+    student.id = id;
+    strcpy(student.fname, fname);
+    strcpy(student.lname, lname);
+    student.gpa = gpa;
+
+    off_t offset = id * sizeof(student_t);
+    
+    if (lseek(fd, offset, SEEK_SET) == -1) {
+        printf(M_ERR_DB_READ);
+        return ERR_DB_FILE;
+    }
+
+    student_t existing;
+    if (read(fd, &existing, sizeof(student_t)) == sizeof(student_t) && existing.id == id) {
+        printf(M_ERR_DB_ADD_DUP, id);
+        return ERR_DB_OP;  // Duplicate ID
+    }
+
+    // Reset pointer before writing
+    if (lseek(fd, offset, SEEK_SET) == -1) {
+        printf(M_ERR_DB_READ);
+        return ERR_DB_FILE;
+    }
+
+    if (write(fd, &student, sizeof(student_t)) != sizeof(student_t)) {
+        printf(M_ERR_DB_WRITE);
+        return ERR_DB_FILE;
+    } else {
+        printf(M_STD_ADDED, id);
+    }
+
+    return NO_ERROR;
 }
+
 
 /*
  *  del_student
@@ -125,8 +168,21 @@ int add_student(int fd, int id, char *fname, char *lname, int gpa){
  *            
  */
 int del_student(int fd, int id){
-    printf(M_NOT_IMPL);
-    return NOT_IMPLEMENTED_YET;
+    off_t offset = id * sizeof(student_t);
+    if (lseek(fd, offset, SEEK_SET) == -1) {
+        perror("Error seeking student record");
+        return ERR_DB_FILE;
+    }
+    student_t existing;
+    if (read(fd, &existing, sizeof(student_t)) == sizeof(student_t) && existing.id == 0) {
+        printf(M_STD_NOT_FND_MSG,id);
+        return ERR_DB_OP;
+    }
+    lseek(fd, offset, SEEK_SET); //reset lseek
+    student_t empty_student = {0};
+    if (write(fd, &empty_student, sizeof(student_t)) != sizeof(student_t)) return ERR_DB_FILE;
+    printf(M_STD_DEL_MSG,id);
+    return NO_ERROR;
 }
 
 /*
@@ -154,8 +210,18 @@ int del_student(int fd, int id){
  *            
  */
 int count_db_records(int fd){
-    printf(M_NOT_IMPL);
-    return NOT_IMPLEMENTED_YET;
+    int count = 0;
+    if(lseek(fd, 0, SEEK_SET) == -1){
+        printf(M_ERR_DB_READ);
+        return ERR_DB_FILE;
+    }
+    student_t student;
+    while (read(fd, &student, sizeof(student_t)) == sizeof(student_t)) {
+        if (student.id != 0) count++;
+    }
+
+    printf(M_DB_RECORD_CNT, count);
+    return count;
 }
 
 /*
@@ -191,16 +257,49 @@ int count_db_records(int fd){
  *            M_ERR_DB_READ    error reading or seeking the database file
  *            
  */
-int print_db(int fd){
-    printf(M_NOT_IMPL);
-    return NOT_IMPLEMENTED_YET;
+
+int is_db_empty(int fd) {
+    student_t student;
+    lseek(fd, 0, SEEK_SET);
+    
+    while (read(fd, &student, sizeof(student_t)) == sizeof(student_t)) {
+        if (student.id != 0) return 0;  // Database is not empty
+    }
+    return 1;  // Database is empty
 }
+
+int print_db(int fd){
+    if(!fd){
+        return ERR_DB_FILE;
+        exit(0);
+    }
+    student_t student;
+    lseek(fd, 0, SEEK_SET);
+    
+    if(is_db_empty(fd)){
+        printf(M_DB_EMPTY);
+    }else{
+        lseek(fd, 0, SEEK_SET);
+        printf(STUDENT_PRINT_HDR_STRING, "ID","FIRST NAME","LAST_NAME", "GPA");
+        while (read(fd, &student, sizeof(student_t)) == sizeof(student_t)) {
+            if (student.id != 0) {
+                // printf("%d\n",student.gpa);
+                printf(STUDENT_PRINT_FMT_STRING, student.id, student.fname,student.lname, ((float)student.gpa)/100);
+            }
+        }   
+    }
+    
+    
+    return NO_ERROR;
+}
+
+
 
 /*
  *  print_student
  *      *s:   a pointer to a student_t structure that should
  *            contain a valid student to be printed
- * 
+ *
  *  Start by ensuring that provided student pointer is valid.  To do this
  *  make sure it is not NULL and that s->id is not zero.  After ensuring 
  *  that the student is valid, print it the exact way that is described
@@ -225,7 +324,11 @@ int print_db(int fd){
  *            
  */
 void print_student(student_t *s){
-    printf(M_NOT_IMPL);
+    if(s!=NULL && s->id!=0){
+        float calculated_gpa_from_s = (float)s->gpa/100;
+        printf(STUDENT_PRINT_FMT_STRING, s->id, s->fname,s->lname, calculated_gpa_from_s);
+    }
+    // printf(M_NOT_IMPL);
 }
 
 /*
