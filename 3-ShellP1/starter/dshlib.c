@@ -44,7 +44,10 @@ int build_cmd_list(char *cmd_line, command_list_t *clist) {
     int cmd_count = 0;
 
     // Split the input string by pipes
-    token = strtok(cmd_line, PIPE_STRING);
+    int L = strlen(cmd_line) + 1;
+    char *cmd_line_copy = malloc(L); 
+    strcpy(cmd_line_copy, cmd_line);
+    token = strtok(cmd_line_copy, PIPE_STRING);
     while (token != NULL) {
         if (cmd_count >= CMD_MAX) {
             printf(CMD_ERR_PIPE_LIMIT, CMD_MAX);
@@ -58,10 +61,13 @@ int build_cmd_list(char *cmd_line, command_list_t *clist) {
 
         // Parse command into exe and args
         char *arg_ptr = strchr(token, SPACE_CHAR);
-        if (arg_ptr) {
-            *arg_ptr = '\0'; // Split into exe and args
-            arg_ptr++; // Move to first argument
-            while (*arg_ptr == SPACE_CHAR) arg_ptr++; // Trim any extra spaces
+        if (arg_ptr && *arg_ptr) {  // Only process if there's a valid argument
+            if (strlen(arg_ptr) >= ARG_MAX) { 
+                return ERR_CMD_OR_ARGS_TOO_BIG; 
+            }
+            strcpy(clist->commands[cmd_count].args, arg_ptr);
+        } else {
+            clist->commands[cmd_count].args[0] = '\0'; // Ensure valid empty string
         }
 
         if (strlen(token) >= EXE_MAX) {
@@ -79,7 +85,10 @@ int build_cmd_list(char *cmd_line, command_list_t *clist) {
         }
 
         cmd_count++;
-        token = strtok(NULL, PIPE_STRING);
+        int L = strlen(cmd_line) + 1;
+        char *cmd_line_copy = malloc(L); 
+        strcpy(cmd_line_copy, cmd_line);
+        token = strtok(cmd_line_copy, PIPE_STRING);
     }
 
     clist->num = cmd_count;
