@@ -61,7 +61,7 @@ int main()
         // printf("\n");
         cmd_buff[strcspn(cmd_buff,"\n")] = '\0';
         // printf("%s %s %d\n", cmd_buff,EXIT_CMD,strcmp(cmd_buff,EXIT_CMD));
-        if (strcmp(cmd_buff,EXIT_CMD)==0){
+        if (strcmp(cmd_buff,EXIT_CMD)==0 || feof(stdin)){
             // printf("\n");
             exit(0);
         }
