@@ -1,0 +1,1 @@
+gcc -Wall -Wextra -g -o dsh dsh_cli.c dshlib.c dshlib.h 
