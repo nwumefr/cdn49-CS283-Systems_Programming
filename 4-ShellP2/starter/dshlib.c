@@ -101,7 +101,7 @@ int build_cmd_buff(char *cmd_line, cmd_buff_t *cmd_buff){
             a++;
         } // Trim leading spaces
         while (la > 0 && a[la - 1] == SPACE_CHAR){
-            token[--la] = '\0'; // Trim trailing spaces
+            a[--la] = '\0'; // Trim trailing spaces
         }
         // if(len%2==0){
         //     printf("lol\n");
@@ -253,7 +253,7 @@ int exec_local_cmd_loop()
 
         build_cmd_buff(cmd_buff, &cmd);
         int status = exec_cmd(&cmd);
-        WEXITSTATUS = status;
+        // WEXITSTATUS = status;
 
     }
     // TODO IMPLEMENT parsing input to cmd_buff_t *cmd_buff
