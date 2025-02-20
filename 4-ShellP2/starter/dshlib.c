@@ -163,7 +163,7 @@ int cd_command(cmd_buff_t *cmd){
 }
 
 int bi_rc(){
-    // printf("%d\n",WEXITSTATUS);
+    printf("%d\n",WEXITSTATUS);
     return 0;
 }
 
@@ -209,7 +209,7 @@ int exec_cmd_external(cmd_buff_t *cmd){
         //wait for child process to end
         waitpid(pid, &status, 0);    
     }
-    return sk;
+    return status;
 }
 
 int exec_cmd(cmd_buff_t *cmd){
@@ -253,7 +253,7 @@ int exec_local_cmd_loop()
 
         build_cmd_buff(cmd_buff, &cmd);
         int status = exec_cmd(&cmd);
-        // WEXITSTATUS = status;
+        WEXITSTATUS = status;
 
     }
     // TODO IMPLEMENT parsing input to cmd_buff_t *cmd_buff
