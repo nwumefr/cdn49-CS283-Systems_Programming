@@ -53,7 +53,7 @@
  *  Standard Library Functions You Might Want To Consider Using (assignment 2+)
  *      fork(), execvp(), exit(), chdir()
  */
-
+int WEXITSTATUS = 0;
 int alloc_cmd_buff(cmd_buff_t *cmd_buff){
     cmd_buff->argc = 0;
     cmd_buff->_cmd_buffer = malloc(CMD_MAX);
