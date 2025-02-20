@@ -98,7 +98,7 @@ int build_cmd_buff(char *cmd_line, cmd_buff_t *cmd_buff){
         strcpy(preargs[len],a); 
         // Trim leading and trailing spaces
         while (*a == SPACE_CHAR) {
-            a++
+            a++;
         } // Trim leading spaces
         while (la > 0 && token[la - 1] == SPACE_CHAR){
             token[--la] = '\0'; // Trim trailing spaces
