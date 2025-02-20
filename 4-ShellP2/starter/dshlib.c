@@ -100,7 +100,7 @@ int build_cmd_buff(char *cmd_line, cmd_buff_t *cmd_buff){
         while (*a == SPACE_CHAR) {
             a++;
         } // Trim leading spaces
-        while (la > 0 && token[la - 1] == SPACE_CHAR){
+        while (la > 0 && a[la - 1] == SPACE_CHAR){
             token[--la] = '\0'; // Trim trailing spaces
         }
         // if(len%2==0){
@@ -163,8 +163,8 @@ int cd_command(cmd_buff_t *cmd){
 }
 
 int bi_rc(){
-    printf("%d\n",WEXITSTATUS);
-    return -9;
+    // printf("%d\n",WEXITSTATUS);
+    return 0;
 }
 
 Built_In_Cmds match_command(const char * input){
