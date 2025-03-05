@@ -80,7 +80,7 @@ int build_cmd_buff(char *cmd_line, cmd_buff_t *cmd_buff){
         printf(CMD_WARN_NO_CMD);
         return WARN_NO_CMDS;
     }
-`
+
     // char * tok;
     char delim = '\"';
     char * opt = NULL;
@@ -155,6 +155,33 @@ int build_cmd_buff(char *cmd_line, cmd_buff_t *cmd_buff){
     return OK;
 }
 
+int build_cmd_list(char* cmd_line, command_list_t* command_list){
+    // split ecerything using the pipe delimiter
+    command_list->num = 0; //initialize count
+    char delim = PIPE_CHAR; // define the delimiter
+    char* opt = NULL; //save pointer for strtok_r
+    char* tok = strtok_r(cmd_line,&delim,&opt); //tokenizing
+    // then for each token divided by the pipe delimiter
+    int index = 0; //index to keep track of commands
+    while(tok!=NULL){
+        // build a cmd buff,
+        // printf("%s\n",tok);
+        cmd_buff_t new_buff;
+        alloc_cmd_buff(&new_buff);
+        build_cmd_buff(tok, &new_buff);
+        // then plug it into the command list's array
+        if(index>CMD_MAX){
+            return ERR_TOO_MANY_COMMANDS;
+        }
+        command_list->commands[index] = new_buff;
+        index++;
+        command_list->num=index;
+        tok = strtok_r(NULL,&delim,&opt); //continue the loop
+    }
+    return OK;
+
+}
+
 int cd_command(cmd_buff_t *cmd){
     if(cmd->argc==2){
         chdir(cmd->argv[1]);
@@ -174,8 +201,7 @@ Built_In_Cmds match_command(const char * input){
     else if (strcmp(input, "rc") == 0) return BI_RC;
     else return BI_NOT_BI;
 }
-
-
+  
 Built_In_Cmds exec_built_in_cmd(cmd_buff_t *cmd){
     if (strcmp(cmd->argv[0], "dragon") == 0) print_dragon();
     else if (strcmp(cmd->argv[0], "cd") == 0) cd_command(cmd);
@@ -188,9 +214,7 @@ Built_In_Cmds exec_built_in_cmd(cmd_buff_t *cmd){
 }
 
 int exec_cmd_external(cmd_buff_t *cmd){
-    // for(int i=0; i<cmd->argc; i++){
-    //     printf("<%d> %s\n",i,cmd->argv[i]);
-    // }
+
     pid_t pid;
     int status;
     
@@ -214,6 +238,7 @@ int exec_cmd_external(cmd_buff_t *cmd){
 
 int exec_cmd(cmd_buff_t *cmd){
     Built_In_Cmds is_builtin = match_command(cmd->argv[0]);
+    // printf("%s %d\n",cmd->argv[0],is_builtin);
     if(is_builtin == BI_NOT_BI){
         return exec_cmd_external(cmd);
     }else{
@@ -221,12 +246,84 @@ int exec_cmd(cmd_buff_t *cmd){
     }
     
 }
+
+int execute_pipeline(command_list_t *cmd){
+    int num_commands = cmd->num;
+    int pipes[num_commands - 1][2];  // Array of pipes
+    pid_t pids[num_commands];        // Array to store process IDs
+
+    // Create all necessary pipes
+    for (int i = 0; i < num_commands - 1; i++) {
+        if (pipe(pipes[i]) == -1) {
+            // perror("pipe");
+            exit(EXIT_FAILURE);
+        }
+    }
+
+    // Create processes for each command
+    for (int i = 0; i < num_commands; i++) {
+        pids[i] = fork();
+        if (pids[i] == -1) {
+            // perror("fork");
+            exit(EXIT_FAILURE);
+        }
+
+        if (pids[i] == 0) {  // Child process
+            // Set up input pipe for all except first process
+            if (i > 0) {
+                dup2(pipes[i-1][0], STDIN_FILENO);
+            }
+
+            // Set up output pipe for all except last process
+            if (i < num_commands - 1) {
+                dup2(pipes[i][1], STDOUT_FILENO);
+            }
+
+            // Close all pipe ends in child
+            for (int j = 0; j < num_commands - 1; j++) {
+                close(pipes[j][0]);
+                close(pipes[j][1]);
+            }
+
+            // Execute command
+            // execvp(commands[i].args[0], commands[i].args);
+            exec_cmd(&cmd->commands[i]);
+            // perror("execvp");
+            exit(EXIT_FAILURE);
+        }
+    }
+
+    // Parent process: close all pipe ends
+    for (int i = 0; i < num_commands - 1; i++) {
+        close(pipes[i][0]);
+        close(pipes[i][1]);
+    }
+
+    // Wait for all children
+    for (int i = 0; i < num_commands; i++) {
+        waitpid(pids[i], NULL, 0);
+    }
+}
+
+int exec_cmd_new(command_list_t *cmd){
+    int index = cmd->num;
+    int status = 0;
+    if(index==1){
+        // printf("%s\n",*cmd->commands[0].argv);
+        status = exec_cmd(&cmd->commands[0]);
+    }else{
+        status = execute_pipeline(cmd);
+    }
+    return status;
+}
+
  
 
 int exec_local_cmd_loop()
 {
     char *cmd_buff;
     int rc = 0;
+    command_list_t cmd_list;
     cmd_buff_t cmd;
     alloc_cmd_buff(&cmd);
     cmd_buff = malloc(ARG_MAX);
@@ -244,30 +341,15 @@ int exec_local_cmd_loop()
             exit(0);
             
         }
-        // if(strcmp(cmd_buff, "dragon")==0){
-            
-        //     printDragon("dragon.txt");
-        // }
-        // // //remove the trailing \n from cmd_buff
-        
+        // build_cmd_buff(cmd_buff, &cmd);
+        build_cmd_list(cmd_buff,&cmd_list);
+        // printf("%d\n",cmd_list.num);
+        int status = exec_cmd_new(&cmd_list);
+        // int status = exec_command(&cmd_list);
 
-        build_cmd_buff(cmd_buff, &cmd);
-        int status = exec_cmd(&cmd);
         WEXITSTATUS = status;
 
     }
-    // TODO IMPLEMENT parsing input to cmd_buff_t *cmd_buff
-
-    // TODO IMPLEMENT if built-in command, execute builtin logic for exit, cd (extra credit: dragon)
-    // the cd command should chdir to the provided directory; if no directory is provided, do nothing
-
-    // TODO IMPLEMENT if not built-in command, fork/exec as an external command
-    // for example, if the user input is "ls -l", you would fork/exec the command "ls" with the arg "-l"
-    
-    
-    // printf("%d\n",cmd.argc);
-    
-    
 
     return OK;
 }
