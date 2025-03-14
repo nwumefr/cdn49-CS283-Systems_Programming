@@ -72,4 +72,5 @@ int rsh_execute_pipeline(int socket_fd, command_list_t *clist);
 Built_In_Cmds rsh_match_command(const char *input);
 Built_In_Cmds rsh_built_in_cmd(cmd_buff_t *cmd);
 
+#define STOP_SERVER_CMD "exit-server"
 #endif

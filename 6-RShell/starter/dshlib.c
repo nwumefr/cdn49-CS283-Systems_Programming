@@ -237,7 +237,7 @@ Built_In_Cmds match_command(const char * input){
 Built_In_Cmds exec_built_in_cmd(cmd_buff_t *cmd){
     if (strcmp(cmd->argv[0], "dragon") == 0) print_dragon();
     else if (strcmp(cmd->argv[0], "cd") == 0) cd_command(cmd);
-    else if (strcmp(cmd->argv[0], EXIT_CMD) == 0)exit(0);
+    else if (strcmp(cmd->argv[0], EXIT_CMD) == 0) exit(0);
     else if (strcmp(cmd->argv[0], "rc") == 0) bi_rc();
     else{
         printf("unknown command\n");

@@ -362,6 +362,19 @@ int rsh_execute_pipeline(int cli_sock, command_list_t *clist) {
     int pipes[num_commands - 1][2];
     pid_t pids[num_commands];
     int status = 0;
+    // Check if the command is `cd`
+    if (strcmp(clist->commands[0].argv[0], "cd") == 0) {
+        if (clist->commands[0].argc < 2) {
+            send_message_string(cli_sock, "cd: missing argument\n");
+        } else {
+            if (chdir(clist->commands[0].argv[1]) != 0) {
+                send_message_string(cli_sock, "cd: no such directory\n");
+            }
+        }
+        return OK;
+    }
+    
+    
 
     for (int i = 0; i < num_commands - 1; i++) {
         if (pipe(pipes[i]) == -1) {
@@ -492,11 +505,24 @@ Built_In_Cmds rsh_match_command(const char *input)
 Built_In_Cmds rsh_built_in_cmd(cmd_buff_t *cmd)
 {
     if (strcmp(cmd->argv[0], "dragon") == 0) print_dragon();
-    else if (strcmp(cmd->argv[0], "cd") == 0) cd_command(cmd);
-    else if (strcmp(cmd->argv[0], EXIT_CMD) == 0)exit(0);
+    else if (strcmp(cmd->argv[0], "cd") == 0){ 
+        // printf("cding\n");
+        cd_command(cmd);
+    }
+    else if (strcmp(cmd->argv[0], EXIT_CMD) == 0){
+        // printf("exiting\n");
+        exit(0);
+    }
     else if (strcmp(cmd->argv[0], "rc") == 0) bi_rc();
     else{
         printf("unknown command\n");
     }
     return BI_EXECUTED;
+}
+
+int rcd_command(cmd_buff_t *cmd){
+    if(cmd->argc==2){
+        chdir(cmd->argv[1]);
+    }  
+    return 0;
 }
