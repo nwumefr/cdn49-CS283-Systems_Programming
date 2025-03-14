@@ -67,6 +67,15 @@ int alloc_cmd_buff(cmd_buff_t *cmd_buff){
     cmd_buff->_cmd_buffer = malloc(CMD_MAX);
     return 0;
 }
+int free_cmd_list(command_list_t *cmd_lst){
+    for (int i = 0; i < cmd_lst->num; i++)
+    {
+        free_cmd_buff(&cmd_lst->commands[i]);
+    }
+
+    cmd_lst->num = 0;
+    return OK;
+}
 int free_cmd_buff(cmd_buff_t *cmd_buff){
     //free the cmd char buffer
     free(cmd_buff->_cmd_buffer);

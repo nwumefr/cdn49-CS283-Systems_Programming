@@ -136,6 +136,7 @@ int boot_server(char *ifaces, int port){
         perror(CMD_ERR_RDSH_COMM);
         return ERR_RDSH_COMMUNICATION;
     }
+    printf("server booted\n");
     return sock;
 }
 
@@ -182,6 +183,7 @@ int boot_server(char *ifaces, int port){
  * 
  */
 int process_cli_requests(int svr_socket){
+    printf("debug command process\n");
     while (1){
         struct sockaddr_in add;
         socklen_t addl = sizeof(add);
@@ -351,6 +353,10 @@ int send_message_string(int cli_socket, char *buff){
  *                  macro that we discussed during our fork/exec lecture to
  *                  get this value. 
  */
+
+
+
+
 int rsh_execute_pipeline(int cli_sock, command_list_t *clist) {
     int num_commands = clist->num;
     int pipes[num_commands - 1][2];
@@ -390,8 +396,9 @@ int rsh_execute_pipeline(int cli_sock, command_list_t *clist) {
                 close(pipes[j][1]);
             }
 
-            execvp(clist->commands[i].argv[0], clist->commands[i].argv);
-            perror("execvp");
+            // execvp(clist->commands[i].argv[0], clist->commands[i].argv);
+            // perror("execvp");
+            exec_cmd(&clist->commands[i]);
             exit(EXIT_FAILURE);
         }
     }
@@ -444,9 +451,12 @@ int rsh_execute_pipeline(int cli_sock, command_list_t *clist) {
  */
 Built_In_Cmds rsh_match_command(const char *input)
 {
-    return BI_NOT_IMPLEMENTED;
+    if (strcmp(input, "dragon") == 0) return BI_CMD_DRAGON;
+    else if (strcmp(input, "cd") == 0) return BI_CMD_CD;
+    else if (strcmp(input, EXIT_CMD) == 0) return BI_CMD_EXIT;
+    else if (strcmp(input, "rc") == 0) return BI_CMD_RC;
+    else return BI_NOT_BI;
 }
-
 /*
  * rsh_built_in_cmd(cmd_buff_t *cmd)
  *      cmd:  The cmd_buff_t of the command, remember, this is the 
@@ -481,5 +491,12 @@ Built_In_Cmds rsh_match_command(const char *input)
  */
 Built_In_Cmds rsh_built_in_cmd(cmd_buff_t *cmd)
 {
-    return BI_NOT_IMPLEMENTED;
+    if (strcmp(cmd->argv[0], "dragon") == 0) print_dragon();
+    else if (strcmp(cmd->argv[0], "cd") == 0) cd_command(cmd);
+    else if (strcmp(cmd->argv[0], EXIT_CMD) == 0)exit(0);
+    else if (strcmp(cmd->argv[0], "rc") == 0) bi_rc();
+    else{
+        printf("unknown command\n");
+    }
+    return BI_EXECUTED;
 }
