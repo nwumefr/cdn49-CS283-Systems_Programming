@@ -10,9 +10,7 @@
 
 #include "dshlib.h"
 #include "rshlib.h"
-
-
-
+#include <sys/time.h>
 
 /*
  * exec_remote_cmd_loop(server_ip, port)
@@ -90,11 +88,51 @@
  *   function after cleaning things up.  See the documentation for client_cleanup()
  *      
  */
-int exec_remote_cmd_loop(char *address, int port)
-{
-    return WARN_RDSH_NOT_IMPL;
-}
+int exec_remote_cmd_loop(char *server_ip, int port) {
+    // printf("for debugging cmd loot started\n");
+    int cli_socket = start_client(server_ip, port);
+    printf("for debugging cmd loot started\n");
+    if (cli_socket < 0) {
+        return client_cleanup(cli_socket, NULL, NULL, ERR_RDSH_CLIENT);
+    }
+    
+    char *cmd_buff = malloc(RDSH_COMM_BUFF_SZ);
+    char *rsp_buff = malloc(RDSH_COMM_BUFF_SZ);
+    if (!cmd_buff || !rsp_buff) {
+        return client_cleanup(cli_socket, cmd_buff, rsp_buff, ERR_MEMORY);
+    }
+    
+    while (1) {
+        printf("%s", SH_PROMPT);
+        if (fgets(cmd_buff, RDSH_COMM_BUFF_SZ, stdin) == NULL) {
+            printf("\n");
+            break;
+        }
+        cmd_buff[strcspn(cmd_buff, "\n")] = '\0';
 
+        if (send(cli_socket, cmd_buff, strlen(cmd_buff) + 1, 0) < 0) {
+            perror("Send failed");
+            return client_cleanup(cli_socket, cmd_buff, rsp_buff, ERR_RDSH_COMMUNICATION);
+        }
+
+        int recv_size;
+        while ((recv_size = recv(cli_socket, rsp_buff, RDSH_COMM_BUFF_SZ - 1, 0)) > 0) {
+            int is_eof = (rsp_buff[recv_size - 1] == RDSH_EOF_CHAR) ? 1 : 0;
+            if (is_eof) {
+                rsp_buff[recv_size - 1] = '\0';
+            }
+            printf("%.*s", recv_size, rsp_buff);
+            if (is_eof) break;
+        }
+
+        if (recv_size < 0) {
+            perror("Receive failed");
+            return client_cleanup(cli_socket, cmd_buff, rsp_buff, ERR_RDSH_COMMUNICATION);
+        }
+    }
+
+    return client_cleanup(cli_socket, cmd_buff, rsp_buff, OK);
+}
 /*
  * start_client(server_ip, port)
  *      server_ip:  a string in ip address format, indicating the servers IP
@@ -118,10 +156,36 @@ int exec_remote_cmd_loop(char *address, int port)
  *          ERR_RDSH_CLIENT:    If socket() or connect() fail
  * 
  */
-int start_client(char *server_ip, int port){
-    return WARN_RDSH_NOT_IMPL;
-}
+int start_client(char *server_ip, int port) {
+    printf("debugging start client func\n");
+    int sock = socket(AF_INET, SOCK_STREAM, 0);
+    if (sock < 0) {
+        perror("Socket creation failed");
+        return ERR_RDSH_CLIENT;
+    }
+    printf("marker1\n");
+    struct sockaddr_in server_addr;
+    server_addr.sin_family = AF_INET;
+    server_addr.sin_port = htons(port);
+    printf("marker2\n");
+    if (inet_pton(AF_INET, server_ip, &server_addr.sin_addr) <= 0) {
+        perror("Invalid IP address");
+        return ERR_RDSH_CLIENT;
+    }
+    printf("marker3\n");
+    struct timeval timeout;
+    timeout.tv_sec = 5;  // 5 seconds timeout
+    timeout.tv_usec = 0;
+    setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, (const char*)&timeout, sizeof(timeout));
+    setsockopt(sock, SOL_SOCKET, SO_SNDTIMEO, (const char*)&timeout, sizeof(timeout));
 
+    if (connect(sock, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0) {
+        perror("Connection failed");
+        return ERR_RDSH_CLIENT;
+    }
+    printf("marker4\n");
+    return sock;
+}
 /*
  * client_cleanup(int cli_socket, char *cmd_buff, char *rsp_buff, int rc)
  *      cli_socket:   The client socket

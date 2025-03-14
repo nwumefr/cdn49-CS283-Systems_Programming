@@ -54,7 +54,6 @@ int start_server(char *ifaces, int port, int is_threaded){
     //TODO:  If you are implementing the extra credit, please add logic
     //       to keep track of is_threaded to handle this feature
     //
-
     svr_socket = boot_server(ifaces, port);
     if (svr_socket < 0){
         int err_code = svr_socket;  //server socket will carry error code
@@ -115,8 +114,31 @@ int stop_server(int svr_socket){
  * 
  */
 int boot_server(char *ifaces, int port){
-    return WARN_RDSH_NOT_IMPL;
+    int sock = socket(AF_INET, SOCK_STREAM, 0);
+    if (sock < 0){
+        perror(CMD_ERR_RDSH_COMM);
+        return ERR_RDSH_COMMUNICATION;
+    }
+
+    int enable = 1;
+    setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &enable, sizeof(int));
+
+    struct sockaddr_in add;
+    add.sin_family = AF_INET;
+    add.sin_addr.s_addr = inet_addr(ifaces);
+    add.sin_port = htons(port);
+
+    if (bind(sock, (struct sockaddr*)&add, sizeof(add)) < 0){
+        perror(CMD_ERR_RDSH_COMM);
+        return ERR_RDSH_COMMUNICATION;
+    }
+    if (listen(sock, 10) < 0) {
+        perror(CMD_ERR_RDSH_COMM);
+        return ERR_RDSH_COMMUNICATION;
+    }
+    return sock;
 }
+
 
 /*
  * process_cli_requests(svr_socket)
@@ -160,8 +182,23 @@ int boot_server(char *ifaces, int port){
  * 
  */
 int process_cli_requests(int svr_socket){
-    return WARN_RDSH_NOT_IMPL;
+    while (1){
+        struct sockaddr_in add;
+        socklen_t addl = sizeof(add);
+        int nsock = accept(svr_socket, (struct sockaddr*)&add, &addl);
+        if (nsock < 0){
+            perror(CMD_ERR_RDSH_COMM);
+            return ERR_RDSH_COMMUNICATION;
+        }
+        int rc = exec_client_requests(nsock);
+        close(nsock);
+        if (rc == OK_EXIT){
+            return OK_EXIT;
+        }
+    }
+    return OK;
 }
+
 
 /*
  * exec_client_requests(cli_socket)
@@ -205,7 +242,32 @@ int process_cli_requests(int svr_socket){
  *                or receive errors. 
  */
 int exec_client_requests(int cli_socket) {
-    return WARN_RDSH_NOT_IMPL;
+    char* io_buff = malloc(RDSH_COMM_BUFF_SZ);
+    command_list_t cmd_list;
+    int status = OK;
+
+    while (1){        
+        int rec = recv(cli_socket, io_buff, RDSH_COMM_BUFF_SZ, 0);
+        if (rec <= 0){
+            break;
+        }
+        io_buff[rec] = '\0';
+
+        if (strcmp(io_buff, "exit") == 0) {
+            status = OK;
+            break;
+        }
+        if (strcmp(io_buff, "stop-server") == 0) {
+            status = OK_EXIT;
+            break;
+        }
+        
+        build_cmd_list(io_buff, &cmd_list);
+        status = rsh_execute_pipeline(cli_socket, &cmd_list);
+        send_message_eof(cli_socket);
+    }
+    free(io_buff);
+    return status;
 }
 
 /*
@@ -223,7 +285,8 @@ int exec_client_requests(int cli_socket) {
  *           we were unable to send the EOF character. 
  */
 int send_message_eof(int cli_socket){
-    return WARN_RDSH_NOT_IMPL;
+    int bytes_sent = send(cli_socket, &RDSH_EOF_CHAR, 1, 0);
+    return (bytes_sent == 1) ? OK : ERR_RDSH_COMMUNICATION;
 }
 
 /*
@@ -245,10 +308,11 @@ int send_message_eof(int cli_socket){
  *           we were unable to send the message followed by the EOF character. 
  */
 int send_message_string(int cli_socket, char *buff){
-    return WARN_RDSH_NOT_IMPL;
+    if (send(cli_socket, buff, strlen(buff), 0) < 0) {
+        return ERR_RDSH_COMMUNICATION;
+    }
+    return send_message_eof(cli_socket);
 }
-
-
 /*
  * rsh_execute_pipeline(int cli_sock, command_list_t *clist)
  *      cli_sock:    The server-side socket that is connected to the client
@@ -288,8 +352,62 @@ int send_message_string(int cli_socket, char *buff){
  *                  get this value. 
  */
 int rsh_execute_pipeline(int cli_sock, command_list_t *clist) {
-    return WARN_RDSH_NOT_IMPL;
+    int num_commands = clist->num;
+    int pipes[num_commands - 1][2];
+    pid_t pids[num_commands];
+    int status = 0;
+
+    for (int i = 0; i < num_commands - 1; i++) {
+        if (pipe(pipes[i]) == -1) {
+            perror("pipe");
+            return ERR_RDSH_COMMUNICATION;
+        }
+    }
+
+    for (int i = 0; i < num_commands; i++) {
+        pids[i] = fork();
+        if (pids[i] == -1) {
+            perror("fork");
+            return ERR_RDSH_COMMUNICATION;
+        }
+
+        if (pids[i] == 0) {
+            if (i == 0) {
+                dup2(cli_sock, STDIN_FILENO);
+            } else {
+                dup2(pipes[i - 1][0], STDIN_FILENO);
+            }
+
+            if (i == num_commands - 1) {
+                dup2(cli_sock, STDOUT_FILENO);
+                dup2(cli_sock, STDERR_FILENO);
+            } else {
+                dup2(pipes[i][1], STDOUT_FILENO);
+            }
+
+            for (int j = 0; j < num_commands - 1; j++) {
+                close(pipes[j][0]);
+                close(pipes[j][1]);
+            }
+
+            execvp(clist->commands[i].argv[0], clist->commands[i].argv);
+            perror("execvp");
+            exit(EXIT_FAILURE);
+        }
+    }
+
+    for (int i = 0; i < num_commands - 1; i++) {
+        close(pipes[i][0]);
+        close(pipes[i][1]);
+    }
+
+    for (int i = 0; i < num_commands; i++) {
+        waitpid(pids[i], &status, 0);
+    }
+
+    return WEXITSTATUS(status);
 }
+
 
 /**************   OPTIONAL STUFF  ***************/
 /****

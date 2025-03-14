@@ -1,0 +1,5 @@
+rdsh-error: communications error
+: Address already in use
+socket server mode:  addr:0.0.0.0:12345
+-> Single-Threaded Mode
+cmd loop returned -50
